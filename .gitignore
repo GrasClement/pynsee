@@ -6,6 +6,7 @@ settings.json
 .coverage
 .venv/
 .vscode/
+notebooks/
 *.html
 *.pyc
 *.rtc
