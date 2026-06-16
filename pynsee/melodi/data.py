@@ -32,7 +32,35 @@ logger = logging.getLogger(__name__)
 def _parse_metadata(
     response: requests.Response, language: str = "all"
 ) -> dict:
-    # TODO: docstring
+    """
+    Extract dataset-level metadata from a MELODI API response.
+ 
+    Reads title, identifier, and publisher from the JSON payload and
+    flattens them into a flat dict keyed by ``<field>_<lang>`` for
+    multilingual fields.
+ 
+    Parameters
+    ----------
+    response : requests.Response
+        Raw response from a ``/data/{id}`` MELODI endpoint.
+    language : str, optional
+        Language filter. ``"all"`` keeps every available language label.
+        Covered values are ``"fr"`` and ``"en"``. The default is ``"all"``.
+ 
+    Returns
+    -------
+    dict
+        Flat metadata dict, e.g.::
+ 
+            {
+                "title_fr": "Pratiques en ligne des personnes",
+                "title_en": "Internet use of individuals",
+                "identifier": "DS_TICM_PRATIQUES",
+                "publisher_id": "INSEE",
+                "publisher_fr": "Institut national de la statistique ...",
+                "publisher_en": "National Institute of Statistics ...",
+            }
+    """
 
     data = response.json()
 
@@ -55,7 +83,30 @@ def _parse_metadata(
 
 
 def _parse_dataset_observations(response: requests.Response):
-    # TODO: docstring
+    """
+    Parse observations from a MELODI ``/data/{id}`` response page.
+
+    Flattens the nested ``dimensions``, ``attributes``, and ``measures``
+    columns into a wide DataFrame. Extracts ``OBS_VALUE_NIVEAU`` from
+    the ``measures`` column when present.
+
+    Parameters
+    ----------
+    response : requests.Response
+        Raw response from one page of a ``/data/{id}`` MELODI endpoint.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per observation with all dimensions, attributes, and
+        ``OBS_VALUE_NIVEAU`` as columns.
+
+    Notes
+    -----
+    Only ``OBS_VALUE_NIVEAU`` is extracted from ``measures``. Datasets
+    using a different measure key (e.g. ``OBS_VALUE_INDICE_DE_PRIX``)
+    will need a separate extraction step.
+    """
 
     data = response.json()
 
@@ -351,7 +402,7 @@ def get_dataset(
     return observations
 
 
-@save_df(day_lapse_max=30)
+@save_df(day_lapse_max=90)
 def get_range(
     id_dataset: str,
     language: str = "all",
@@ -590,7 +641,38 @@ def get_range(
 def get_idbank(
     id_banks: str, language: str = "all", raise_if_not_ok: bool = True
 ):
-    # TODO: docstring
+    """
+    Get MELODI time series by idbank identifier(s).
+
+    Retrieves one or more series from the ``/data/series/{idbanks}``
+    endpoint. Multiple idbanks can be passed separated by ``+``.
+
+    Parameters
+    ----------
+    id_banks : str
+        One or more idbank identifiers, separated by ``+``.
+        Example: ``"010770930"`` or ``"010598544+010770930"``.
+    language : str, optional
+        If set to ``"all"``, keeps metadata labels in every available
+        language. Set to ``"fr"`` or ``"en"`` to keep only one.
+        The default is ``"all"``.
+    raise_if_not_ok : bool, optional
+        If ``True``, raises a ``RequestException`` when the response
+        status code is >= 400. The default is ``True``.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per observation across all requested series, with
+        dimensions, attributes, measures, and series metadata as columns.
+        Returns an empty DataFrame if the API returns no data.
+
+    Examples
+    --------
+    >>> get_idbank("010770930")
+    >>> get_idbank("010598544+010770930")
+    >>> get_idbank("010770930", language="fr")
+    """
 
     url = f"https://api.insee.fr/melodi/data/series/{id_banks}"
 
@@ -622,7 +704,7 @@ def get_idbank(
             elif isinstance(val, dict):
                 for key2, val2 in val.items():
                     if key2 in {"en", "fr"}:
-                        if key2 in {"all", language}:
+                        if language in {"all", key2}:  # logique des autres language in {"all",...}
                             assign[f"{key}_{key2}"] = val2
                     else:
                         assign[f"{key}_{key2}"] = val2
