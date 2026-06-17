@@ -126,7 +126,12 @@ def _parse_dataset_observations(response: requests.Response):
 
 @save_df(day_lapse_max=30)
 def get_dataset(
-    id_dataset, language: str = "all", raise_if_not_ok: bool = True, **filters
+    id_dataset,
+    language: str = "all",
+    raise_if_not_ok: bool = True,
+    update: bool = False,
+    silent: bool = False,
+    **filters,
 ) -> pd.DataFrame:
     """
     Get a MELODI dataset (pagination is handled by pynsee if need be).
@@ -407,6 +412,8 @@ def get_range(
     language: str = "all",
     include_values: bool = False,
     raise_if_not_ok: bool = True,
+    update: bool = False,
+    silent: bool = False,
 ) -> pd.DataFrame:
     """
     Get a dataset's available dimensions (ie "ranges").
@@ -638,7 +645,11 @@ def get_range(
 
 @save_df(day_lapse_max=30)
 def get_idbank(
-    id_banks: str, language: str = "all", raise_if_not_ok: bool = True
+    id_banks: str,
+    language: str = "all",
+    raise_if_not_ok: bool = True,
+    update: bool = False,
+    silent: bool = False,
 ):
     """
     Get MELODI time series by idbank identifier(s).
