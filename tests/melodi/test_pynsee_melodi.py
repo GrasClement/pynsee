@@ -76,16 +76,36 @@ _METADATA_PAYLOAD = {
 
 # Exact set of 10 dimensions: fails visibly if INSEE restructures the dataset.
 _TICM_CONCEPT_CODES = {
-    "OBS_STATUS", "PCS_ESE", "SEX", "TICM_MEASURE",
-    "EMPSTA", "FREQ", "TIME_PERIOD", "EDUC", "AGE", "MEASURE",
+    "OBS_STATUS",
+    "PCS_ESE",
+    "SEX",
+    "TICM_MEASURE",
+    "EMPSTA",
+    "FREQ",
+    "TIME_PERIOD",
+    "EDUC",
+    "AGE",
+    "MEASURE",
 }
 
 # Exact set of 16 survey measures: fails visibly if INSEE adds/removes one.
 _TICM_MEASURES = {
-    "ACHA_12MOIS", "ACHA_3MOIS", "VENTE_3MOIS", "COMPTE_BANCAIRE",
-    "WEB_12MOIS_X_EGOV", "EGOV_12MOIS", "QUOTIDIEN", "EMAIL",
-    "RESEAUX_SOC", "INFO_PRODUITS", "NO_EGOV", "WEB_3MOIS",
-    "TEL_PAR_INT", "NO_WEB_12MOIS", "LECTURE", "PROFIL",
+    "ACHA_12MOIS",
+    "ACHA_3MOIS",
+    "VENTE_3MOIS",
+    "COMPTE_BANCAIRE",
+    "WEB_12MOIS_X_EGOV",
+    "EGOV_12MOIS",
+    "QUOTIDIEN",
+    "EMAIL",
+    "RESEAUX_SOC",
+    "INFO_PRODUITS",
+    "NO_EGOV",
+    "WEB_3MOIS",
+    "TEL_PAR_INT",
+    "NO_WEB_12MOIS",
+    "LECTURE",
+    "PROFIL",
 }
 
 
@@ -93,7 +113,9 @@ class TestFunction(TestCase):
 
     def test_parse_metadata_all_languages(self):
         # {"lang": "fr", "content": "..."} must be flattened to {"publisher_fr": ...}
-        meta = _parse_metadata(_mock_response(_METADATA_PAYLOAD), language="all")
+        meta = _parse_metadata(
+            _mock_response(_METADATA_PAYLOAD), language="all"
+        )
         test = isinstance(meta, dict)
         test = test & ("title_fr" in meta) & ("title_en" in meta)
         test = test & ("publisher_fr" in meta) & ("publisher_en" in meta)
@@ -102,7 +124,9 @@ class TestFunction(TestCase):
 
     def test_parse_metadata_single_language(self):
         # language="fr" must exclude _en columns
-        meta = _parse_metadata(_mock_response(_METADATA_PAYLOAD), language="fr")
+        meta = _parse_metadata(
+            _mock_response(_METADATA_PAYLOAD), language="fr"
+        )
         test = ("title_fr" in meta) & ("title_en" not in meta)
         test = test & ("publisher_fr" in meta) & ("publisher_en" not in meta)
         self.assertTrue(test)
@@ -160,7 +184,9 @@ class TestFunction(TestCase):
         test = True
         df = get_range("DS_TICM_PRATIQUES", language="fr", include_values=True)
         test = test & isinstance(df, pd.DataFrame)
-        measures = set(df[df["concept_code"] == "TICM_MEASURE"]["code"].dropna())
+        measures = set(
+            df[df["concept_code"] == "TICM_MEASURE"]["code"].dropna()
+        )
         test = test & (measures == _TICM_MEASURES)
         self.assertTrue(test)
 
@@ -185,7 +211,9 @@ class TestFunction(TestCase):
     def test_get_dataset_dynamic_measures(self):
         # End-to-end regression for the dynamic measure key fix.
         # freq="M", time_period=2024: keeps it to ~1 page (full year, published).
-        df = get_dataset("DS_IPC_PRINC", language="fr", freq="M", time_period=2024)
+        df = get_dataset(
+            "DS_IPC_PRINC", language="fr", freq="M", time_period=2024
+        )
         test = isinstance(df, pd.DataFrame)
         test = test & ("OBS_VALUE_INDICE_DE_PRIX" in df.columns)
         test = test & df["OBS_VALUE_INDICE_DE_PRIX"].notna().any()
