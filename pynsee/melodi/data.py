@@ -87,8 +87,8 @@ def _parse_dataset_observations(response: requests.Response):
     Parse observations from a MELODI ``/data/{id}`` response page.
 
     Flattens the nested ``dimensions``, ``attributes``, and ``measures``
-    columns into a wide DataFrame. Extracts ``OBS_VALUE_NIVEAU`` from
-    the ``measures`` column when present.
+    columns into a wide DataFrame. All measure keys are extracted
+    dynamically, whatever their name.
 
     Parameters
     ----------
@@ -99,13 +99,7 @@ def _parse_dataset_observations(response: requests.Response):
     -------
     pd.DataFrame
         One row per observation with all dimensions, attributes, and
-        ``OBS_VALUE_NIVEAU`` as columns.
-
-    Notes
-    -----
-    Only ``OBS_VALUE_NIVEAU`` is extracted from ``measures``. Datasets
-    using a different measure key (e.g. ``OBS_VALUE_INDICE_DE_PRIX``)
-    will need a separate extraction step.
+        measure columns (e.g. ``OBS_VALUE_NIVEAU``, ``OBS_VALUE_INDICE_DE_PRIX``).
     """
 
     data = response.json()
@@ -118,9 +112,14 @@ def _parse_dataset_observations(response: requests.Response):
             )
 
     if "measures" in obs.columns:
-        measures = obs.measures.str["OBS_VALUE_NIVEAU"].str["value"]
-        obs["OBS_VALUE_NIVEAU"] = measures
-        obs = obs.drop("measures", axis=1)
+        # déplie toutes les clés de mesure dynamiquement
+        # (le nom varie selon le dataset : OBS_VALUE_NIVEAU, OBS_VALUE_INDICE_DE_PRIX, etc.)
+        measures_expanded = pd.DataFrame(
+            obs["measures"].apply(
+                lambda m: {k: v.get("value") for k, v in m.items()}
+            ).tolist()
+        )
+        obs = obs.drop("measures", axis=1).join(measures_expanded)
 
     return obs
 
