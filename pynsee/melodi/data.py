@@ -34,11 +34,11 @@ def _parse_metadata(
 ) -> dict:
     """
     Extract dataset-level metadata from a MELODI API response.
- 
+
     Reads title, identifier, and publisher from the JSON payload and
     flattens them into a flat dict keyed by ``<field>_<lang>`` for
     multilingual fields.
- 
+
     Parameters
     ----------
     response : requests.Response
@@ -46,12 +46,12 @@ def _parse_metadata(
     language : str, optional
         Language filter. ``"all"`` keeps every available language label.
         Covered values are ``"fr"`` and ``"en"``. The default is ``"all"``.
- 
+
     Returns
     -------
     dict
         Flat metadata dict, e.g.::
- 
+
             {
                 "title_fr": "Pratiques en ligne des personnes",
                 "title_en": "Internet use of individuals",
@@ -115,9 +115,9 @@ def _parse_dataset_observations(response: requests.Response):
         # déplie toutes les clés de mesure dynamiquement
         # (le nom varie selon le dataset : OBS_VALUE_NIVEAU, OBS_VALUE_INDICE_DE_PRIX, etc.)
         measures_expanded = pd.DataFrame(
-            obs["measures"].apply(
-                lambda m: {k: v.get("value") for k, v in m.items()}
-            ).tolist()
+            obs["measures"]
+            .apply(lambda m: {k: v.get("value") for k, v in m.items()})
+            .tolist()
         )
         obs = obs.drop("measures", axis=1).join(measures_expanded)
 
@@ -664,7 +664,10 @@ def get_idbank(
     pd.DataFrame
         One row per observation across all requested series, with
         dimensions, attributes, measures, and series metadata as columns.
-        Returns an empty DataFrame if the API returns no data.
+        Returns an empty DataFrame if the API returns no data. This occurs
+        notably when the idbank exists in BDM but has no corresponding
+        MELODI dataset yet.
+
 
     Examples
     --------
@@ -687,6 +690,8 @@ def get_idbank(
 
         obs = pd.DataFrame(dset.pop("observations"))
         for f in ["attributes", "dimensions", "measures"]:
+            if f not in obs.columns:
+                continue
             unstacked = pd.DataFrame(obs[f].values.tolist())
             if f == "measures":
                 for c in unstacked.columns:
@@ -703,7 +708,10 @@ def get_idbank(
             elif isinstance(val, dict):
                 for key2, val2 in val.items():
                     if key2 in {"en", "fr"}:
-                        if language in {"all", key2}:  # logique des autres language in {"all",...}
+                        if language in {
+                            "all",
+                            key2,
+                        }:  # logique des autres language in {"all",...}
                             assign[f"{key}_{key2}"] = val2
                     else:
                         assign[f"{key}_{key2}"] = val2
@@ -745,8 +753,9 @@ if __name__ == "__main__":
     # test = get_range("DS_TICM_PRATIQUES", include_values=True)
     # print(test)
 
-    # not working !
+    # ces idbanks (indicateurs BDM climat des affaires) n'ont pas de dataset MELODI correspondant
+    # l'API retourne HTTP 200 avec liste vide, get_idbank retourne pd.DataFrame() proprement
     # get_idbank("001565530+001565531")
 
-    # print(get_idbank("010770930"))
+    print(get_idbank("010770930"))
     print(get_idbank("010598544+010770930"))
