@@ -764,8 +764,8 @@ if __name__ == "__main__":
     # test = get_range("DS_TICM_PRATIQUES", include_values=True)
     # print(test)
 
-    # ces idbanks (indicateurs BDM climat des affaires) n'ont pas de dataset MELODI correspondant
-    # l'API retourne HTTP 200 avec liste vide, get_idbank retourne pd.DataFrame() proprement
+    # these idbanks (indicateurs BDM climat des affaires) don't have a matching MELODI database
+    # The API returns HTTP 200 with an empty list, get_idbank returns pd.DataFrame() properly
     # get_idbank("001565530+001565531")
 
     print(get_idbank("010770930"))
