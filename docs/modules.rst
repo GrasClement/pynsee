@@ -48,3 +48,9 @@ Utils
 
 .. automodule:: pynsee.utils
     :members:
+
+MELODI
+------
+
+.. automodule:: pynsee.melodi
+    :members:
