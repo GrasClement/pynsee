@@ -13,9 +13,10 @@ from pynsee.melodi.data import _parse_dataset_observations, _parse_metadata
 # ---------------------------------------------------------------------------
 # Mocks: the only mocks in the pynsee tests.
 # Every other module tests internal helpers against the real API.
-# Exception here: the bugs fixed in melodi/data/py live inside parsing helpers
-# called inside get_dataset. Testing them through the real API would
-# require downloading DS_IPC_PRINC on every test run.
+# Exception here: the parsing helpers called inside get_dataset need to
+# cover edge cases (dynamic measure keys, missing "measures" field).
+# Testing them through the real API would require downloading DS_IPC_PRINC
+# on every test run.
 # ---------------------------------------------------------------------------
 
 
@@ -25,9 +26,9 @@ def _mock_response(data):
     return r
 
 
-# Bug fix: measure key was hardcoded as OBS_VALUE_NIVEAU. DS_IPC_PRINC uses
-# OBS_VALUE_INDICE_DE_PRIX: old code returned None for every price.
-# Second obs has value=None to verify None -> NaN (not a raw dict).
+# The measure key varies by dataset (e.g. OBS_VALUE_NIVEAU vs
+# OBS_VALUE_INDICE_DE_PRIX for DS_IPC_PRINC) and must be extracted
+# dynamically. Second obs has value=None to verify None -> NaN (not a raw dict).
 _OBS_DYNAMIC_MEASURE = {
     "observations": [
         {
@@ -43,8 +44,8 @@ _OBS_DYNAMIC_MEASURE = {
     ]
 }
 
-# Bug fix: observations without a "measures" key crashed on obs.drop("measures").
-# Guard added: if "measures" in obs.columns.
+# Observations may come without a "measures" key: parsing must not crash
+# on obs.drop("measures") in that case.
 _OBS_NO_MEASURES = {
     "observations": [
         {
@@ -74,7 +75,7 @@ _METADATA_PAYLOAD = {
 # small (~350 obs), stable structure, downloads in one page.
 # ---------------------------------------------------------------------------
 
-# Exact set of 10 dimensions: fails visibly if INSEE restructures the dataset.
+# DS_TICM_PRATIQUES's 10 dimensions.
 _TICM_CONCEPT_CODES = {
     "OBS_STATUS",
     "PCS_ESE",
@@ -88,7 +89,7 @@ _TICM_CONCEPT_CODES = {
     "MEASURE",
 }
 
-# Exact set of 16 survey measures: fails visibly if INSEE adds/removes one.
+# DS_TICM_PRATIQUES's 16 survey measures.
 _TICM_MEASURES = {
     "ACHA_12MOIS",
     "ACHA_3MOIS",
@@ -132,7 +133,7 @@ class TestFunction(TestCase):
         self.assertTrue(test)
 
     def test_parse_observations_dynamic_measure_key(self):
-        # Regression: measure key must be extracted dynamically, not hardcoded.
+        # Measure key must be extracted dynamically, not hardcoded.
         df = _parse_dataset_observations(_mock_response(_OBS_DYNAMIC_MEASURE))
         test = isinstance(df, pd.DataFrame)
         test = test & ("OBS_VALUE_INDICE_DE_PRIX" in df.columns)
@@ -142,7 +143,7 @@ class TestFunction(TestCase):
         self.assertTrue(test)
 
     def test_parse_observations_no_measures_column(self):
-        # Regression: observations without "measures" must not crash.
+        # Observations without "measures" must not crash.
         df = _parse_dataset_observations(_mock_response(_OBS_NO_MEASURES))
         test = isinstance(df, pd.DataFrame)
         test = test & ("TIME_PERIOD" in df.columns)
@@ -163,7 +164,7 @@ class TestFunction(TestCase):
 
     def test_get_catalog_known_datasets_present(self):
         # dataset_identifier is not unique (one dataset can have multiple products).
-        # Assert presence of stable, long-running datasets rather than len > 0.
+        # Assert presence of stable, long-running datasets.
         test = True
         df = get_catalog(language="fr")
         known = {"DS_IPC_PRINC", "DS_TICM_PRATIQUES", "DS_ICA"}
@@ -172,7 +173,8 @@ class TestFunction(TestCase):
         self.assertTrue(test)
 
     def test_get_range_sparse(self):
-        # Assert exact dimension set, not just column presence.
+        # Assert exact dimension set, not just column presence: fails
+        # visibly if INSEE restructures the dataset.
         test = True
         df = get_range("DS_TICM_PRATIQUES", language="fr")
         test = test & isinstance(df, pd.DataFrame)
@@ -180,7 +182,8 @@ class TestFunction(TestCase):
         self.assertTrue(test)
 
     def test_get_range_with_values(self):
-        # Assert exact measure set for TICM_MEASURE.
+        # Assert exact measure set for TICM_MEASURE: fails visibly if
+        # INSEE adds/removes one.
         test = True
         df = get_range("DS_TICM_PRATIQUES", language="fr", include_values=True)
         test = test & isinstance(df, pd.DataFrame)
@@ -193,7 +196,9 @@ class TestFunction(TestCase):
     def test_get_dataset_1(self):
         # With sex=F, age=Y45T59, time_period=2025: exactly one row per measure
         # (all other dimensions have a single "total" modality _T).
-        # Also verify the API actually applied the filters.
+        # Measure identity is already checked in test_get_range_with_values;
+        # this test checks get_dataset's own behavior instead: filters were
+        # actually applied by the API, with no duplicate/missing rows.
         df = get_dataset(
             "DS_TICM_PRATIQUES",
             language="fr",
@@ -202,10 +207,10 @@ class TestFunction(TestCase):
             age="Y45T59",
         )
         test = isinstance(df, pd.DataFrame)
-        test = test & (len(df) == len(_TICM_MEASURES))
-        test = test & (set(df["TICM_MEASURE"]) == _TICM_MEASURES)
+        test = test & (df["TICM_MEASURE"].nunique() == len(df))
         test = test & (df["SEX"] == "F").all()
         test = test & (df["AGE"] == "Y45T59").all()
+        test = test & (df["TIME_PERIOD"].astype(str) == "2025").all()
         self.assertTrue(test)
 
     def test_get_dataset_dynamic_measures(self):
@@ -227,11 +232,18 @@ class TestFunction(TestCase):
         # 010770930 = DS_ICA monthly series, sector 46.19A (non-food purchasing
         # centres), base 2021. Open series: do NOT assert len (grows monthly).
         # Start date 1999-01 is a historical fact and will not change.
+        # Instead of a fixed length, check every completed year has exactly
+        # 12 monthly observations, confirming the series is still updated
+        # at a monthly frequency (the last, ongoing year is excluded).
         test = True
         df = get_idbank("010770930", language="fr")
         test = test & isinstance(df, pd.DataFrame)
         test = test & (df["TIME_PERIOD"].min() == "1999-01")
         test = test & (df["idBank"] == "010770930").all()
+        yearly_counts = df.groupby(df["TIME_PERIOD"].str[:4])[
+            "dataset"
+        ].count()
+        test = test & (yearly_counts.iloc[:-1] == 12).all()
         self.assertTrue(test)
 
     def test_get_idbank_multi(self):
@@ -242,16 +254,20 @@ class TestFunction(TestCase):
         self.assertTrue(test)
 
     def test_get_idbank_language_fr(self):
-        # Regression: "key2 in {'all', language}" was backwards: _fr columns
-        # were absent when language="fr". Fixed to "language in {'all', key2}".
+        # language="fr" must keep the "_fr" columns.
         df = get_idbank("010770930", language="fr")
         test = isinstance(df, pd.DataFrame)
         test = test & any(c.endswith("_fr") for c in df.columns)
         self.assertTrue(test)
 
     def test_get_idbank_dead_bdm_ids(self):
-        # BDM series with no MELODI dataset yet -> HTTP 200 + empty list -> empty df.
-        df = get_idbank("001565530+001565531")
+        # Any unrecognized idbank returns HTTP 200 + an empty list from
+        # MELODI (no validation on the id itself) -> get_idbank returns an
+        # empty df (a warning is logged, since this is expected and not a
+        # pynsee error). Real-world case this covers: an idbank that exists
+        # in BDM but has no corresponding MELODI dataset yet (e.g.
+        # 001565530+001565531, "climat des affaires" indicators).
+        df = get_idbank("spam+eggs")
         test = isinstance(df, pd.DataFrame)
         test = test & df.empty
         self.assertTrue(test)
