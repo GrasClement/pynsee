@@ -137,11 +137,6 @@ def get_dataset(
     """
     Get a MELODI dataset (pagination is handled by pynsee if need be).
 
-    Note: as pagination is handled, `page`, `maxResult` and `totalCount`
-    arguments should NOT be added to the kwargs and will be ignored. `range`
-    will also be ignored : to retrieve a dataset's dimensions, have a look at
-    `pynsee.melodi.get_range`.
-
     Parameters
     ----------
     id_dataset : str
@@ -160,6 +155,11 @@ def get_dataset(
         filters' labels are UPPERCASE, pynsee handles lowercase in consistence
         with python's conventions.
 
+    Returns
+    -------
+    observations : pd.DataFrame
+        Dataset's as a DataFrame.
+        
     Raises
     ------
     RequestException
@@ -169,10 +169,12 @@ def get_dataset(
         results' shape. This should NOT happen and is triggered to warn users
         to get in touch if this arises.
 
-    Returns
-    -------
-    observations : pd.DataFrame
-        Dataset's as a DataFrame.
+    Notes
+    -----
+    As pagination is handled internally, `page`, `maxResult` and
+    `totalCount` should NOT be passed in `**filters` and will be ignored.
+    `range` will also be ignored: to retrieve a dataset's dimensions, use
+    `pynsee.melodi.get_range`.
 
     Examples
     -------
